@@ -1,16 +1,15 @@
 from multiprocessing import Process, JoinableQueue, current_process, parent_process
 from queue import Empty
+from threading import Thread, current_thread
 
 
-def worker(queue: JoinableQueue):
+def process_worker(queue: JoinableQueue):
 
     try:
         item = queue.get()
         id = item.get('id')
         task = item.get('task')
-
-        # The enqued data has been read
-        queue.task_done()
+        filename = item.get('filename')
 
         process_id = current_process().pid
 
@@ -18,19 +17,28 @@ def worker(queue: JoinableQueue):
         print(f"My parent: {parent_process().pid}")
         print()
 
-        with open(task+".txt", "w") as fh:
+        with open(filename, "w") as fh:
             fh.write(task)
+
+        # The enqued data has been read
+        queue.task_done()
 
     except Empty:
         print("The queue is empty")
         pass
 
 
+def thread_worker(thread_id: int, filename: str):
+    with open(filename, "r") as fh:
+        print(f"I am {thread_id}. My assigned task: {fh.read()}")
+
+
 if __name__ == "__main__":
 
-    print(f"Master process started, process id: {current_process().pid}")
+    print(f"Master process started, process id: {current_process().pid}\n")
 
     process_list: list[Process] = []
+    thread_list: list[Thread] = []
 
     action_dict = {
         1: "palindrome_checking",
@@ -44,11 +52,12 @@ if __name__ == "__main__":
 
         communication_queue.put({
             "id": i,
-            "task": action_dict[i]
+            "task": action_dict[i],
+            "filename": action_dict[i] + ".txt"
         })
 
         process_list.append(
-            Process(target=worker, args=(communication_queue,))
+            Process(target=process_worker, args=(communication_queue,))
         )
 
     for process in process_list:
@@ -57,5 +66,10 @@ if __name__ == "__main__":
     # Wait for the processes to finish
     for process in process_list:
         process.join()
+
+    for i in range(1, 4):
+        thread_list.append(
+            Thread(target=thread_worker, args=(i, ))
+        )
 
     print("Master process ended")
